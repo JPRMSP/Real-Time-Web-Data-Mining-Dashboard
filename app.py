@@ -18,7 +18,7 @@ def fetch_text_and_links(url):
         for s in soup(["script", "style"]):
             s.extract()
         text = " ".join(soup.stripped_strings)
-        # Extract links
+        # Extract outgoing links
         links = [a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("http")]
         return text, links
     except Exception as e:
@@ -27,7 +27,12 @@ def fetch_text_and_links(url):
 def preprocess(text):
     text = text.lower()
     words = re.findall(r"\b[a-z]{3,}\b", text)
-    stopwords = set(open("https://raw.githubusercontent.com/stopwords-iso/stopwords-en/master/stopwords-en.txt").read().split())
+
+    # Fetch stopwords dynamically from GitHub
+    stopwords_url = "https://raw.githubusercontent.com/stopwords-iso/stopwords-en/master/stopwords-en.txt"
+    stopwords_text = requests.get(stopwords_url).text
+    stopwords = set(stopwords_text.split())
+
     words = [w for w in words if w not in stopwords]
     return words
 
@@ -69,7 +74,7 @@ def compute_pagerank(G):
 st.set_page_config(page_title="Real-Time Web Data Mining Dashboard", layout="wide")
 
 st.title("🌐 Real-Time Web Data Mining Dashboard")
-st.markdown("Analyze live websites with **keyword mining, co-occurrence rules, sentiment, and link analysis with PageRank.**")
+st.markdown("Analyze live websites with **keyword mining, co-occurrence rules, sentiment/emotion mining, and PageRank link analysis**. All without datasets or pretrained models!")
 
 urls = st.text_area("Enter one or more URLs (comma-separated):", 
                     "https://en.wikipedia.org/wiki/Artificial_intelligence, https://en.wikipedia.org/wiki/Data_mining")
@@ -147,19 +152,21 @@ if st.button("Mine Now"):
         # ---------------------------
         st.header("🌐 Link Graph & PageRank")
         G = build_link_graph(results)
-        pr = compute_pagerank(G)
+        if len(G.nodes) > 0:
+            pr = compute_pagerank(G)
 
-        st.subheader("PageRank Scores")
-        pr_df = pd.DataFrame(pr.items(), columns=["Page", "PageRank"]).sort_values("PageRank", ascending=False)
-        st.table(pr_df.head(10))
+            st.subheader("PageRank Scores")
+            pr_df = pd.DataFrame(pr.items(), columns=["Page", "PageRank"]).sort_values("PageRank", ascending=False)
+            st.table(pr_df.head(10))
 
-        # Graph Visualization
-        st.subheader("Graph Visualization")
-        fig, ax = plt.subplots(figsize=(10,6))
-        pos = nx.spring_layout(G, k=0.5, seed=42)
-        nx.draw(G, pos, with_labels=False, node_size=500, node_color="skyblue", arrowsize=12, ax=ax)
-        nx.draw_networkx_labels(G, pos, font_size=8, ax=ax)
-        st.pyplot(fig)
+            # Graph Visualization
+            st.subheader("Graph Visualization")
+            fig, ax = plt.subplots(figsize=(10,6))
+            pos = nx.spring_layout(G, k=0.5, seed=42)
+            nx.draw(G, pos, with_labels=False, node_size=500, node_color="skyblue", arrowsize=12, ax=ax)
+            nx.draw_networkx_labels(G, pos, font_size=8, ax=ax)
+            st.pyplot(fig)
 
         # Export option
-        st.download_button("⬇ Export Keyword Data (CSV)", df.to_csv().encode("utf-8"), "web_mining_results.csv", "text/csv")
+        if len(results) > 1:
+            st.download_button("⬇ Export Keyword Data (CSV)", df.to_csv().encode("utf-8"), "web_mining_results.csv", "text/csv")
